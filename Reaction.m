@@ -1,6 +1,6 @@
 classdef Reaction
     %Reaction
-    % kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    % 
     
     properties
         Compounds            % Array of Compound objects
@@ -35,26 +35,62 @@ classdef Reaction
             %
             % Really sensitive to errors of the database -> exp(P+dP)
             
+            % In case the user has set heat_capacity as constant
+            % 
             if ~exist('heat_capacity', 'var')
                 heat_capacity = 'variable';
             end
             
+            
             Tref = 298.15;
             R = 8.314;
+            
+            % Calculation dH at T = 298.15 K
+            % 
             dH_298 = CalculatedH_298(obj);
             
+            % Verifying user options
+            % 
             if strcmp(heat_capacity, 'constant') == 0
-                dCoef = zeros(5,1);
-                for i = 1 : length(dCoef)
-                    for j = 1 : length(obj.Compounds)
-                        dCoef(i) = dCoef(i) + obj.Compounds(j).Cp(i) * obj.Ni(j);
+                
+                % Calculation of ?A, ?B, ?C, ?D, ?E
+                % e.g. ?A is defined by ?(A_i * v_i)
+                % 
+                
+                dCoef = zeros(5,1);                                               % List with ?A, ?B, ?C, ?D, ?E
+                for i = 1 : length(dCoef)                                         % Loop over the number of Cp coef.
+                    for j = 1 : length(obj.Compounds)                             % Loop over the number of compounds
+                        dCoef(i) = dCoef(i) + obj.Compounds(j).Cp(i) * obj.Ni(j); % Sum the each Cp coef. multiplied to stoichometric coef.
                     end
                 end
-                a = -dH_298/R + dCoef(1) * Tref - (dCoef(2) * Tref ^ 2) / 2 + (dCoef(3) * Tref ^ 3) / 3 - dCoef(4) / Tref + (dCoef(5) * Tref ^ 4) / 4;
-                b = dCoef(1) * log(T / Tref) + (dCoef(2) * (T - Tref)) / 2 + (dCoef(3) * (T ^ 2 - Tref ^ 2)) / 6 + (dCoef(4) * ((1 / T ^ 2)-(1 / Tref ^ 2))) / 2 + (dCoef(5) * (T ^ 3 - Tref ^ 3)) / 12;
+                
+                % Designing each coefficient to a variable.
+                % (Human-interpretability reasons)
+                dA = dCoef(1);
+                dB = dCoef(2);
+                dC = dCoef(3);
+                dD = dCoef(4);
+                dE = dCoef(5);
+                
+                % Calculation of K
+                % 
+                
+                % The chemical equilibrium equation was divided in two
+                % minor parts (a and b). (Koretsky p. 577)
+                a = -dH_298/R + dA * Tref - (dB * Tref ^ 2) / 2 + (dC * Tref ^ 3) / 3 - dD / Tref + (dE * Tref ^ 4) / 4;
+                b = dA * log(T / Tref) + (dB * (T - Tref)) / 2 + (dC * (T ^ 2 - Tref ^ 2)) / 6 + (dD * ((1 / T ^ 2)-(1 / Tref ^ 2))) / 2 + (dE * (T ^ 3 - Tref ^ 3)) / 12;
+                
+                % Full analytical equation of K considering dH_rxn as f(T)
                 K_T = exp(a * (1 / T - 1 / Tref) + b) * obj.K_298;
+                
             else
+                
+                % Calculation of K
+                % 
+                
+                %Full analytical equation of K considering dH_rxn = constant
                 K_T = exp((-dH_298 / R) * (1 / T - 1 / Tref)) * obj.K_298;
+                
             end
             
         end
@@ -68,11 +104,20 @@ classdef Reaction
             % This method verifies the consistency between the atoms and 
             % the stoichiometric coefficients of the chemical equation
             
-            % Fit atoms in matrix
+            % Matrix with the number of atoms of C, H, O, N for each 
+            % compound in the respective rows
+            % 
+            
+            % Declare shape of the matrix
             M = zeros(length(Compounds), 4);
+            
+            % Fit atoms in rows of the matrix
             for i = 1 : length(Compounds)
                 M(i, :) = Compounds(i).Atoms';
             end
+            
+            % Verifying consistency by the stoichiometric coefficients
+            % 
             
             % Using stoichiometric coefficients
             V = M.*Ni';
